@@ -4,12 +4,13 @@ import { User } from '../types';
 
 interface WalletProps {
   user: User;
-  onFund: (amount: number) => void;
+  onFund: (amount: number) => Promise<void>;
 }
 
 const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
   const [fundAmount, setFundAmount] = useState('');
   const [showFundModal, setShowFundModal] = useState(false);
+  const [isFunding, setIsFunding] = useState(false);
 
   const formatNaira = (kobo: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -18,10 +19,12 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
     }).format(kobo / 100);
   };
 
-  const handleFund = () => {
+  const handleFund = async () => {
     const val = parseInt(fundAmount);
     if (!isNaN(val) && val > 0) {
-      onFund(val * 100);
+      setIsFunding(true);
+      await onFund(val * 100);
+      setIsFunding(false);
       setFundAmount('');
       setShowFundModal(false);
     }
@@ -126,9 +129,10 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
               </div>
               <button 
                 onClick={handleFund}
-                className="w-full bg-[#5E00A3] text-white py-5 rounded-[24px] font-black text-lg shadow-xl mt-6 hover:bg-[#4A0080]"
+                disabled={isFunding}
+                className="w-full bg-[#5E00A3] text-white py-5 rounded-[24px] font-black text-lg shadow-xl mt-6 hover:bg-[#4A0080] disabled:opacity-50"
               >
-                Continue to Payment
+                {isFunding ? 'Processing...' : 'Continue to Payment'}
               </button>
               <button 
                 onClick={() => setShowFundModal(false)}

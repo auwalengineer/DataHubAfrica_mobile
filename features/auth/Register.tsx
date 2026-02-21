@@ -1,23 +1,59 @@
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../../services/firebase';
 import { BrandLogo } from '../../components/BrandLogo';
 
-interface RegisterProps {
-  onRegister: () => void;
-}
-
-const Register: React.FC<RegisterProps> = ({ onRegister }) => {
+const Register: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     password: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onRegister();
+    setLoading(true);
+    setError('');
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
+      const user = userCredential.user;
+
+      // Create user document in Firestore
+      await setDoc(doc(db, 'users', user.uid), {
+        uid: user.uid,
+        email: formData.email,
+        displayName: formData.name,
+        phoneNumber: formData.phone,
+        walletBalance: 0, // Start with 0 balance
+        virtualAccount: {
+          bankName: 'Wema Bank',
+          accountNumber: Math.floor(1000000000 + Math.random() * 9000000000).toString(),
+          accountName: `DATAHUB - ${formData.name}`
+        },
+        kycStatus: 'unverified',
+        pinSet: false,
+        biometricsEnabled: false
+      });
+    } catch (err: any) {
+      console.error("Registration Error:", err);
+      if (err.code === 'auth/network-request-failed') {
+        setError('Network error. Please check your internet connection or disable ad-blockers.');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('This email is already registered.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters.');
+      } else {
+        setError(err.message || 'Failed to register');
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -32,6 +68,11 @@ const Register: React.FC<RegisterProps> = ({ onRegister }) => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-xs font-bold border border-red-100">
+              {error}
+            </div>
+          )}
           <div className="space-y-1">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">Full Name</label>
             <input 
@@ -83,9 +124,10 @@ const Register: React.FC<RegisterProps> = ({ onRegister }) => {
           <div className="pt-6">
             <button 
               type="submit"
-              className="w-full bg-[#FF5100] text-white py-5 rounded-[22px] font-black text-lg shadow-xl shadow-orange-100 hover:scale-[1.02] active:scale-[0.98] transition-all"
+              disabled={loading}
+              className="w-full bg-[#FF5100] text-white py-5 rounded-[22px] font-black text-lg shadow-xl shadow-orange-100 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50"
             >
-              Get Started
+              {loading ? 'Creating Account...' : 'Get Started'}
             </button>
           </div>
         </form>

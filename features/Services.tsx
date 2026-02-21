@@ -38,8 +38,8 @@ const Services: React.FC<ServicesProps> = ({ user, onPurchase }) => {
     const aiResponse = await validateTransactionWithAI(amountKobo, selectedCategory, metadata);
     setFeedback(aiResponse);
 
-    setTimeout(() => {
-      const success = onPurchase(selectedCategory, amountKobo, metadata);
+    setTimeout(async () => {
+      const success = await onPurchase(selectedCategory, amountKobo, metadata);
       if (success) {
         setFeedback("Transaction Completed Successfully!");
         setTimeout(() => {
