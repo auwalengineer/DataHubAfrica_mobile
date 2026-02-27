@@ -26,19 +26,42 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   useEffect(() => {
+    let unsubscribeUser: (() => void) | null = null;
+    let unsubscribeTx: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      // Cleanup previous listeners if any
+      if (unsubscribeUser) unsubscribeUser();
+      if (unsubscribeTx) unsubscribeTx();
+
       if (firebaseUser) {
         setIsLoggedIn(true);
         
         // Listen to user document
         const userDocRef = doc(db, 'users', firebaseUser.uid);
-        const unsubscribeUser = onSnapshot(userDocRef, (docSnap) => {
+        unsubscribeUser = onSnapshot(userDocRef, async (docSnap) => {
           if (docSnap.exists()) {
             setUser(docSnap.data() as User);
           } else {
-            // If user doc doesn't exist, we might need to create it (usually handled in Register)
-            // But for safety, we can handle it here or just wait for Register to do it.
+            const newUser: User = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || 'DataHub User',
+              phoneNumber: firebaseUser.phoneNumber || '',
+              walletBalance: 0,
+              virtualAccount: {
+                bankName: 'Wema Bank',
+                accountNumber: Math.floor(1000000000 + Math.random() * 9000000000).toString(),
+                accountName: `DATAHUB - ${firebaseUser.displayName || 'User'}`
+              },
+              kycStatus: 'unverified',
+              pinSet: false,
+              biometricsEnabled: false
+            };
+            await setDoc(userDocRef, newUser);
           }
+        }, (error) => {
+          console.error("User Snapshot Error:", error);
         });
 
         // Listen to transactions
@@ -47,18 +70,18 @@ const App: React.FC = () => {
           where('userId', '==', firebaseUser.uid),
           orderBy('timestamp', 'desc')
         );
-        const unsubscribeTx = onSnapshot(txQuery, (querySnapshot) => {
+        unsubscribeTx = onSnapshot(txQuery, (querySnapshot) => {
           const txs: Transaction[] = [];
           querySnapshot.forEach((doc) => {
             txs.push({ id: doc.id, ...doc.data() } as Transaction);
           });
           setTransactions(txs);
+        }, (error) => {
+          console.error("Transactions Snapshot Error:", error);
+          if (error.code === 'failed-precondition') {
+            console.warn("Firestore Index required for transactions query.");
+          }
         });
-
-        return () => {
-          unsubscribeUser();
-          unsubscribeTx();
-        };
       } else {
         setIsLoggedIn(false);
         setUser(null);
@@ -66,7 +89,11 @@ const App: React.FC = () => {
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeUser) unsubscribeUser();
+      if (unsubscribeTx) unsubscribeTx();
+    };
   }, []);
 
   const addTransaction = async (category: ServiceCategory, amount: number, metadata: any) => {
@@ -150,7 +177,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (!isLoggedIn || !user) {
+  if (!isLoggedIn) {
     return (
       <Router>
         <Routes>
@@ -159,6 +186,21 @@ const App: React.FC = () => {
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </Router>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#F9F8FD] p-8 text-center">
+        <div className="w-12 h-12 border-4 border-[#5E00A3] border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-[#1A0033] font-black text-sm uppercase tracking-widest">Loading Profile...</p>
+        <button 
+          onClick={handleLogout}
+          className="mt-8 text-[#FF5100] font-black text-xs uppercase tracking-widest underline"
+        >
+          Cancel & Logout
+        </button>
+      </div>
     );
   }
 
