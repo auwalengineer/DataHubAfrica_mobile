@@ -32,7 +32,7 @@ const Register: React.FC = () => {
         phoneNumber: formData.phone,
         walletBalance: 0, // Start with 0 balance
         virtualAccount: {
-          bankName: 'Wema Bank',
+          bankName: 'Paystack-Titan',
           accountNumber: Math.floor(1000000000 + Math.random() * 9000000000).toString(),
           accountName: `DATAHUB - ${formData.name}`
         },

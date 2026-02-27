@@ -50,7 +50,7 @@ const App: React.FC = () => {
               phoneNumber: firebaseUser.phoneNumber || '',
               walletBalance: 0,
               virtualAccount: {
-                bankName: 'Wema Bank',
+                bankName: 'Paystack-Titan',
                 accountNumber: Math.floor(1000000000 + Math.random() * 9000000000).toString(),
                 accountName: `DATAHUB - ${firebaseUser.displayName || 'User'}`
               },
@@ -62,6 +62,9 @@ const App: React.FC = () => {
           }
         }, (error) => {
           console.error("User Snapshot Error:", error);
+          if (error.code === 'permission-denied') {
+            alert("Firestore Permission Denied: Please update your Security Rules in the Firebase Console.");
+          }
         });
 
         // Listen to transactions

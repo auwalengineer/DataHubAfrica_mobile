@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { usePaystackPayment } from 'react-paystack';
 import { User } from '../types';
 
 interface WalletProps {
@@ -11,6 +12,59 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
   const [fundAmount, setFundAmount] = useState('');
   const [showFundModal, setShowFundModal] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
+  const [fundingStatus, setFundingStatus] = useState<string | null>(null);
+
+  const config = {
+    reference: (new Date()).getTime().toString(),
+    email: user.email,
+    amount: parseInt(fundAmount) * 100, // Paystack expects amount in kobo
+    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_4ea603611ecbde8bb847bda1b4ffb5d76b1a31b6',
+  };
+
+  const initializePayment = usePaystackPayment(config);
+
+  const onSuccess = async (reference: any) => {
+    setIsFunding(true);
+    setFundingStatus("Verifying payment...");
+    try {
+      // Verify payment on the server
+      const response = await fetch('/api/verify-payment', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reference: reference.reference }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        setFundingStatus("Updating wallet...");
+        await onFund(data.amount);
+        setFundingStatus("Success! Wallet funded.");
+        setTimeout(() => {
+          setShowFundModal(false);
+          setFundAmount('');
+          setFundingStatus(null);
+        }, 2000);
+      } else {
+        setFundingStatus(`Error: ${data.message || 'Verification failed'}`);
+      }
+    } catch (error: any) {
+      console.error("Verification error:", error);
+      setFundingStatus(`Error: ${error.message || 'An error occurred'}`);
+    } finally {
+      setIsFunding(false);
+    }
+  };
+
+  const onClose = () => {
+    console.log('Payment closed');
+  };
 
   const formatNaira = (kobo: number) => {
     return new Intl.NumberFormat('en-NG', {
@@ -19,14 +73,12 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
     }).format(kobo / 100);
   };
 
-  const handleFund = async () => {
+  const handleFund = () => {
     const val = parseInt(fundAmount);
-    if (!isNaN(val) && val > 0) {
-      setIsFunding(true);
-      await onFund(val * 100);
-      setIsFunding(false);
-      setFundAmount('');
-      setShowFundModal(false);
+    if (!isNaN(val) && val >= 100) {
+      initializePayment({ onSuccess, onClose });
+    } else {
+      alert("Minimum funding amount is ₦100");
     }
   };
 
@@ -54,7 +106,7 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
               <div className="flex justify-between items-end">
                 <div>
                   <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Bank Partner</p>
-                  <p className="font-black text-xl tracking-tight">{user.virtualAccount.bankName}</p>
+                  <p className="font-black text-xl tracking-tight">Paystack-Titan</p>
                 </div>
                 <div className="text-right">
                    <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Status</p>
@@ -130,10 +182,21 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
               <button 
                 onClick={handleFund}
                 disabled={isFunding}
-                className="w-full bg-[#5E00A3] text-white py-5 rounded-[24px] font-black text-lg shadow-xl mt-6 hover:bg-[#4A0080] disabled:opacity-50"
+                className="w-full bg-[#5E00A3] text-white py-5 rounded-[24px] font-black text-lg shadow-xl mt-6 hover:bg-[#4A0080] disabled:opacity-50 transition-all"
               >
-                {isFunding ? 'Processing...' : 'Continue to Payment'}
+                {isFunding ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <span>{fundingStatus || 'Processing...'}</span>
+                  </div>
+                ) : 'Continue to Payment'}
               </button>
+
+              {fundingStatus && !isFunding && (
+                <div className={`mt-4 p-4 rounded-2xl text-center font-bold text-sm ${fundingStatus.startsWith('Success') ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
+                  {fundingStatus}
+                </div>
+              )}
               <button 
                 onClick={() => setShowFundModal(false)}
                 className="w-full text-gray-400 py-2 font-black text-[10px] uppercase tracking-[0.3em]"
