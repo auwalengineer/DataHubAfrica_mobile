@@ -65,8 +65,10 @@ const TransactionHistory: React.FC<TransactionsProps> = ({ transactions }) => {
         ))}
 
         {filteredTransactions.length === 0 && (
-          <div className="py-20 text-center">
-            <p className="text-gray-400 text-sm italic">No transactions found.</p>
+          <div className="py-20 text-center bg-white rounded-[32px] border border-gray-50 shadow-sm">
+            <div className="text-4xl mb-4">📂</div>
+            <p className="text-gray-900 font-black text-sm uppercase tracking-widest">No Transactions Yet</p>
+            <p className="text-gray-400 text-xs mt-2">Your payment history will appear here once you start using your wallet.</p>
           </div>
         )}
       </div>

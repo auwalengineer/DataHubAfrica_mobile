@@ -18,7 +18,7 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
     reference: (new Date()).getTime().toString(),
     email: user.email,
     amount: parseInt(fundAmount) * 100, // Paystack expects amount in kobo
-    publicKey: import.meta.env.VITE_PAYSTACK_PUBLIC_KEY || 'pk_test_4ea603611ecbde8bb847bda1b4ffb5d76b1a31b6',
+    publicKey: 'pk_test_37641a55d427e86351692a896b37f40f56d9b9bd',
   };
 
   const initializePayment = usePaystackPayment(config);
@@ -44,13 +44,17 @@ const Wallet: React.FC<WalletProps> = ({ user, onFund }) => {
 
       if (data.success) {
         setFundingStatus("Updating wallet...");
-        await onFund(data.amount);
-        setFundingStatus("Success! Wallet funded.");
-        setTimeout(() => {
-          setShowFundModal(false);
-          setFundAmount('');
-          setFundingStatus(null);
-        }, 2000);
+        const success = await onFund(data.amount);
+        if (success) {
+          setFundingStatus("Success! Wallet funded.");
+          setTimeout(() => {
+            setShowFundModal(false);
+            setFundAmount('');
+            setFundingStatus(null);
+          }, 2000);
+        } else {
+          setFundingStatus("Error: Failed to update balance in database.");
+        }
       } else {
         setFundingStatus(`Error: ${data.message || 'Verification failed'}`);
       }

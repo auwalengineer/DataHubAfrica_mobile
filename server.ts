@@ -17,7 +17,7 @@ async function startServer() {
   // Paystack Verification Endpoint
   app.post("/api/verify-payment", async (req, res) => {
     const { reference } = req.body;
-    const secretKey = process.env.PAYSTACK_SECRET_KEY || "sk_test_bbacb3d35f94423b5bd8a6a96b2fb74f360765c8";
+    const secretKey = "sk_test_288b85d0cff35a9832df13290cae1a106a703502";
 
     try {
       console.log(`Verifying Paystack reference: ${reference}`);

@@ -68,23 +68,48 @@ const App: React.FC = () => {
         });
 
         // Listen to transactions
-        const txQuery = query(
-          collection(db, 'transactions'),
-          where('userId', '==', firebaseUser.uid),
-          orderBy('timestamp', 'desc')
-        );
-        unsubscribeTx = onSnapshot(txQuery, (querySnapshot) => {
-          const txs: Transaction[] = [];
-          querySnapshot.forEach((doc) => {
-            txs.push({ id: doc.id, ...doc.data() } as Transaction);
-          });
-          setTransactions(txs);
-        }, (error) => {
-          console.error("Transactions Snapshot Error:", error);
-          if (error.code === 'failed-precondition') {
-            console.warn("Firestore Index required for transactions query.");
+        const setupTxListener = (useOrderBy: boolean) => {
+          const txCollection = collection(db, 'transactions');
+          let txQuery;
+          
+          if (useOrderBy) {
+            txQuery = query(
+              txCollection,
+              where('userId', '==', firebaseUser.uid),
+              orderBy('timestamp', 'desc')
+            );
+          } else {
+            txQuery = query(
+              txCollection,
+              where('userId', '==', firebaseUser.uid)
+            );
           }
-        });
+          
+          return onSnapshot(txQuery, (querySnapshot) => {
+            const txs: Transaction[] = [];
+            querySnapshot.forEach((doc) => {
+              txs.push({ id: doc.id, ...doc.data() } as Transaction);
+            });
+            
+            // If we didn't use orderBy in the query, sort client-side
+            if (!useOrderBy) {
+              txs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+            }
+            
+            setTransactions(txs);
+          }, (error) => {
+            // If index is missing, retry without orderBy
+            if (error.code === 'failed-precondition' && useOrderBy) {
+              console.warn("Firestore Index missing. Falling back to client-side sorting. To fix this permanently, create the index: https://console.firebase.google.com/v1/r/project/datahubafrica-3b9e2/firestore/indexes?create_composite=Clhwcm9qZWN0cy9kYXRhaHViYWZyaWNhLTNiOWUyL2RhdGFiYXNlcy8oZGVmYXVsdCkvY29sbGVjdGlvbkdyb3Vwcy90cmFuc2FjdGlvbnMvaW5kZXhlcy9fEAEaCgoGdXNlcklkEAEaDQoJdGltZXN0YW1wEAIaDAoIX19uYW1lX18QAg");
+              if (unsubscribeTx) unsubscribeTx();
+              unsubscribeTx = setupTxListener(false);
+            } else {
+              console.error("Transactions Snapshot Error:", error);
+            }
+          });
+        };
+
+        unsubscribeTx = setupTxListener(true);
       } else {
         setIsLoggedIn(false);
         setUser(null);
@@ -137,7 +162,7 @@ const App: React.FC = () => {
   };
 
   const fundWallet = async (amount: number) => {
-    if (!user) return;
+    if (!user) return false;
     
     const prevBalance = user.walletBalance;
     const newBal = prevBalance + amount;
@@ -152,7 +177,7 @@ const App: React.FC = () => {
         newBalance: newBal,
         status: TransactionStatus.SUCCESS,
         reference: `FUND-${Math.floor(Math.random() * 1000000)}`,
-        metadata: { method: 'Simulation' },
+        metadata: { method: 'Paystack' },
         timestamp: new Date().toISOString()
       };
 
@@ -163,8 +188,10 @@ const App: React.FC = () => {
       await updateDoc(userDocRef, {
         walletBalance: increment(amount)
       });
+      return true;
     } catch (error) {
       console.error("Funding failed:", error);
+      return false;
     }
   };
 
